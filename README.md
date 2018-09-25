@@ -9,7 +9,8 @@ Build (if you already have Virtio ISO):
 	$ packer build -only=qemu .\ubuntu1804.json
 
 Or (downloads Virtio ISO and executes build):
-  $ ./build.sh
+
+	$ ./build.sh
 
 ## Notes
 This template has been created in order to resolve problems with provisioning Windows Server 2016 behind a proxy. Keep in mind that:
