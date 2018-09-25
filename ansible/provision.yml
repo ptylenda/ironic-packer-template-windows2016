@@ -1,0 +1,21 @@
+---
+- name: Provision windows
+  hosts: all
+  vars:
+    http_proxy: ""  # Provide your proxy settings if needed, and change "configure_proxy" variable below to "yes"
+    https_proxy: ""
+    ftp_proxy: ""
+    no_proxy: ""
+    configure_proxy: yes
+    apply_windows_updates: no
+    credssp_allow_encryption_oracle: yes
+    env_vars:
+      HTTP_PROXY: "{{ http_proxy }}"
+      HTTPS_PROXY: "{{ https_proxy }}"
+      NO_PROXY: "{{ no_proxy }}"
+      FTP_PROXY: "{{ ftp_proxy }}"
+  environment: "{{ env_vars|default({}) }}"
+  gather_facts: yes
+  tasks:
+    - import_role:
+        name: windows/common

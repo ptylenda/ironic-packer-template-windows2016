@@ -1,0 +1,66 @@
+---
+- name: Configure proxy
+  block:
+    - name: Set proxy environment variables for all users
+      win_environment:
+        state: present
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        level: machine
+      with_dict:
+        HTTP_PROXY: "{{ http_proxy }}"
+        HTTPS_PROXY: "{{ https_proxy }}"
+        NO_PROXY: "{{ no_proxy }}"
+    - name: Configure Powershell environment
+      win_shell: "[Environment]::SetEnvironmentVariable('HTTP_PROXY', '{{ http_proxy }}', [EnvironmentVariableTarget]::Machine); [Environment]::SetEnvironmentVariable('HTTPS_PROXY', '{{ https_proxy }}', [EnvironmentVariableTarget]::Machine);"
+    - name: Configure registry
+      win_shell: "reg add \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\" /v ProxyServer /t REG_SZ /d \"{{ http_proxy }}\" /f; reg add \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\" /v ProxyEnable /t REG_DWORD /d 1 /f"
+  when: configure_proxy|bool|default(false)
+  
+- name: Install common packages using chocolatey
+  win_chocolatey:
+    name: "{{ item.key }}"
+    version: "{{ item.value }}"
+    proxy_url: "{{ https_proxy }}"
+  with_dict:
+    nssm: "{{ nssm_version }}"
+    git: "{{ git_version }}"
+    openssh: "{{ openssh_version }}"
+    7zip: "{{ 7zip_version }}"
+    pswindowsupdate: "{{ pswindowsupdate_version }}"
+    notepadplusplus: "{{ notepadplusplus_version }}"
+    vim: "{{ vim_version }}"
+
+# NOTE: Requires Ansible higher than ansible 2.5.0b2 due to bugs in 2.4 and win_updates
+- name: Install windows updates
+  win_updates:
+    use_scheduled_task: yes  # Required due to bugs in Ansible 2.6: https://groups.google.com/forum/#!topic/packer-tool/cavtSoWyapI
+    category_names:
+      - Application
+      - Connectors
+      - DefinitionUpdates
+      - DeveloperKits
+      - FeaturePacks
+      - Guidance
+      - ServicePacks
+      - Tools
+      - UpdateRollups
+      - CriticalUpdates
+      - SecurityUpdates
+      - Updates
+  register: update_state
+  when: apply_windows_updates|bool|default(false) 
+
+# Use this with caution, only if you are unable to install latest windows updates on QEMU
+- name: Configure registry workaround for CredSSP
+  win_shell: "reg add \"HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\CredSSP\\Parameters\" /f /v AllowEncryptionOracle /t REG_DWORD /d 2"
+  when: credssp_allow_encryption_oracle|bool|default(false)
+
+- name: Reboot if needed
+  win_reboot:
+    reboot_timeout: 3600
+    post_reboot_delay: 60
+  when: update_state is defined and update_state is not skipped and update_state.reboot_required
+  
+- name: Gather facts again
+  setup:
